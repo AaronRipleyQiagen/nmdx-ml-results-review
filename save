@@ -1,0 +1,59 @@
+import pandas as pd
+
+import dash  
+from dash import dcc
+from dash import html
+from dash.dependencies import Input, Output
+from dash import dash_table
+import requests
+import warnings
+warnings.filterwarnings('ignore')
+
+dash_app = dash.Dash(__name__)
+
+app = dash_app.server
+
+dash_app.layout = html.Div([
+
+    html.Div(id='instrument-datatable', children=[]),
+
+    # activated once/week or when page refreshed
+    dcc.Interval(id='interval_db', interval=86400000 * 7, n_intervals=1),
+
+])
+
+@dash_app.callback(Output('instrument-datatable', 'children'),
+              [Input('interval_db', 'n_intervals')])
+
+def update_instruments(n_intervals):
+    print(n_intervals)
+    res = requests.get("https://localhost:7028/api/NeuMoDxInstruments", verify=False)
+    json_data = res.json()
+    df = pd.DataFrame(json_data)
+    df_visable = df[["instrumentType", "neuMoDxSerialNumber"]]
+    df_visable.columns = ['Instrument Type', 'NeuMoDx Serial Number']
+    print(df_visable)
+    return [
+        dash_table.DataTable(
+            id='my-table',
+            columns=[{
+                'name': x,
+                'id': x,
+            } for x in df_visable.columns],
+            data=df_visable.to_dict('records'),
+            editable=False,
+            row_deletable=False,
+            filter_action="native",
+            filter_options={"case": "sensitive"},
+            sort_action="native",  # give user capability to sort columns
+            sort_mode="single",  # sort across 'multi' or 'single' columns
+            page_current=0,  # page number that user is on
+            page_size=6,  # number of rows visible per page
+            style_cell={'textAlign': 'center', 'minWidth': '100px',
+                        'width': '100px', 'maxWidth': '100px'},
+        )
+    ]
+
+if __name__ == '__main__':
+    
+    dash_app.run_server(debug=True)
